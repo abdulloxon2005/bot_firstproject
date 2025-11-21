@@ -9,10 +9,14 @@ from config import API_URL
 import aiohttp
 
 router=Router()
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+    "Content-Type": "application/json"
+}
 
 @router.message(CommandStart())
 async def handler_start(message:Message):
-    await message.answer("salo men eslatma botman",reply_markup=keyboard.login_kb)
+    await message.answer("eslatma bot",reply_markup=keyboard.login_kb)
 
 
 @router.message(F.text == "login qilish")
@@ -33,39 +37,44 @@ async def get_password(message:Message,state:FSMContext):
     username = data['username']
     password = message.text
 
-
     async with aiohttp.ClientSession() as session:
-        async with session.post(f"{API_URL}",json={"username":username,"password":password})as resp:
-            if resp.status !=200:
-                await message.answer("login yoki parol hato")
-                await state.clear()
-                return
-            result = await resp.json()
-            token = result.get("token")
+        async with session.post(f"{API_URL}",json={"login":username,"password":password},headers=headers) as resp:
+            if resp.status == 200:
+                result = await resp.json()
+                if result.get("success") and "data" in result:
+                    
+                    token = result["data"].get("accessToken")
+                    student_info = result["data"].get("studentInfo",{})
 
+                    if token:
+                        await state.update_data(token=token)
 
-    await state.update_data(token=token)
-    await message.answer("login qilindi malumot olinmoqda")
+                        first_name = student_info.get("firstName", "")
+                        last_name = student_info.get("lastName", "")
+                        middle_name = student_info.get("middleName", "")
+                        login = student_info.get("login", username)
+                        mobile = student_info.get("mobile", "")
+                        
+                        full_name = f"{first_name} {last_name} {middle_name}".strip()
 
+                        await message.answer(
+                            f"LOgin qilindi\n\n"
+                            f"Ism: {full_name}\n"
+                            f"Login: {login}\n"
+                            f"Telefon: {mobile}"
+                        )
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{API_URL}/api/user/me", headers={"Authorization": f"Bearer {token}"}) as resp:
+                        await state.clear()
+                        return
+                    
+                    await message.answer("token topilmadi")
+                    await state.clear()
+                    return
+                
+                else:
+                    await message.answer("login yoki parol hato")
+                    await state.clear()
+                    return
 
-
-            if resp.status != 200:
-                await message.answer("malumotlar yuklanmadi")
-                await state.clear()
-                return
-            
-            profile = await resp.json()
-
-            data = profile.get("data",{})
-
-
-            user_id = data.get("id")
-            first_name = data.get("firstName")
-            last_name = data.get("lastName")
-
-            text =f"malumotlaringiz:\n\n {user_id}\nIsm: {first_name}\nFailya: {last_name}"
-
-            await message.answer(text)
+    await message.answer("server bilan ulanishda xato")
+    await state.clear()
