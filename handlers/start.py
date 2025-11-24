@@ -5,7 +5,8 @@ from keyboards import keyboard
 from aiogram.fsm.context import FSMContext
 from states import LoginState
 from config import API_URL,TASK_URL
-from token_storage import set_token,get_token,delete_token
+from token_storage import set_token,get_token
+from datetime import datetime
 
 
 
@@ -124,7 +125,13 @@ async def login_sorash(message:Message):
 
                 for i, task in enumerate(tasks, 1):
                     name = task.get('name', '')
-                    text += f"{i}. {name}\n"
+                    vaqt_str = task.get('createdAt', '')
+
+                    vaqt_clean = vaqt_str.split(" GMT")[0]
+                    vaqt_dt = datetime.strptime(vaqt_clean, "%a %b %d %Y %H:%M:%S")
+                    formatted_time = vaqt_dt.strftime("%d-%m-%Y")
+                        
+                    text += f"{i}. {name} | {formatted_time}\n"
 
                 await message.answer(text)
                 
