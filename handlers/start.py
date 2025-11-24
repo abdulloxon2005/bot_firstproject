@@ -4,19 +4,24 @@ from aiogram.types import Message
 from keyboards import keyboard
 from aiogram.fsm.context import FSMContext
 from states import LoginState
-from config import API_URL
+from config import API_URL,TASK_URL
+from token_storage import set_token,get_token,delete_token
+
+
 
 import aiohttp
 
 router=Router()
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+
 }
 
 @router.message(CommandStart())
 async def handler_start(message:Message):
     await message.answer("eslatma bot",reply_markup=keyboard.login_kb)
+    
 
 
 @router.message(F.text == "login qilish")
@@ -47,6 +52,8 @@ async def get_password(message:Message,state:FSMContext):
                     student_info = result["data"].get("studentInfo",{})
 
                     if token:
+                        set_token(message.from_user.id,token)
+                        
                         await state.update_data(token=token)
 
                         first_name = student_info.get("firstName", "")
@@ -78,3 +85,48 @@ async def get_password(message:Message,state:FSMContext):
 
     await message.answer("server bilan ulanishda xato")
     await state.clear()
+
+
+@router.message(F.text == "task_chek")
+async def login_sorash(message:Message):
+    token = get_token(message.from_user.id)
+
+    if not token:
+        await message.answer("Avval login qiling!")
+        return
+    await message.answer("vazifa11 yuklanmoqda")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Origin": "https://erp.student.najottalim.uz",
+        "Referer": "https://erp.student.najottalim.uz/"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(TASK_URL,headers=headers) as response:
+
+                if response.status != 200:
+                    await message.answer(f"{response.status}")
+                    return
+        
+                data = await response.json()
+                tasks = (
+                    data.get("data", {})
+                    .get("groupLessonsData", {})
+                    .get("groupLessons", [])
+                )
+                print(data)
+
+               
+                text = "Vazifalar:\n\n"
+
+                for i, task in enumerate(tasks, 1):
+                    name = task.get('name', '')
+                    text += f"{i}. {name}\n"
+
+                await message.answer(text)
+                
+
+#delete_token(6482193215)
